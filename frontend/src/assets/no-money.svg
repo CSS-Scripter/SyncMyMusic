@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   width="24"
+   height="24"
+   viewBox="0 0 24 24"
+   fill="none"
+   stroke="#EBC099"
+   stroke-width="2"
+   stroke-linecap="round"
+   stroke-linejoin="round"
+   class="feather feather-dollar-sign"
+   version="1.1"
+   id="svg6">
+  <metadata
+     id="metadata12">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <defs
+     id="defs10" />
+  <line
+     style="stroke-width:1.2521863"
+     x1="11.872109"
+     y1="4.8037195"
+     x2="11.872109"
+     y2="18.577768"
+     id="line2" />
+  <path
+     style="stroke-width:1.2521863"
+     d="m 15.002575,7.3080918 h -4.695698 a 2.191326,2.191326 0 0 0 0,4.3826512 h 3.130465 a 2.191326,2.191326 0 0 1 0,4.382652 H 8.1155509"
+     id="path4" />
+  <circle
+     cx="11.898304"
+     cy="11.694915"
+     r="10"
+     id="circle3717"
+     style="stroke:#d95830;stroke-opacity:1" />
+  <line
+     x1="4.8283048"
+     y1="4.6249151"
+     x2="18.968304"
+     y2="18.764915"
+     id="line3719"
+     style="stroke:#d95830;stroke-opacity:1" />
+</svg>

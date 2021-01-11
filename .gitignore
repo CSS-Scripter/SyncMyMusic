@@ -1,0 +1,9 @@
+./database
+database
+.DS_Store
+backend/__debug_bin
+.vscode/launch.json
+node_modules
+files
+frontend/coverage/clover.xml
+env_variables

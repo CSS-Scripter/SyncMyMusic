@@ -1,0 +1,213 @@
+stages:
+  - build
+  - test
+  - deploy-to-staging
+  - staging
+  - deploy
+
+build-frontend:
+  stage: build
+  image: comfy/node-chrome:latest
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - .npm/
+  script:
+    - cd frontend
+    - npm ci --cache .npm --prefer-offline
+    - npm install
+    - npm run build -- --mode staging
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - frontend/dist/
+  rules:
+    - if: $CI_COMMIT_BRANCH != "master"
+      when: on_success
+  tags:
+    - VUE
+
+build-frontend-production:
+  stage: build
+  image: comfy/node-chrome:latest
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - .npm/
+  script:
+    - cd frontend
+    - npm ci --cache .npm --prefer-offline
+    - npm install
+    - npm run build -- --mode production
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - frontend/dist/
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+      when: on_success
+  tags:
+    - VUE
+
+build-backend:
+  stage: build
+  image: golang:1.15.2
+  script:
+    - cd backend
+    - go mod vendor
+    - go build -o ./build/app
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - backend/build/app
+  tags:
+    - GO
+
+unit-test-frontend:
+  stage: test
+  script:
+    - cd frontend
+    - npm install
+    - npm run test:unit
+  rules:
+    - if: $CI_COMMIT_BRANCH != "master"
+      when: on_success
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - frontend/coverage
+  tags:
+    - VUE
+
+unit-test-backend:
+  stage: test
+  variables:
+    DATABASE_NAME: syncmymusic
+    POSTGRES_USER: $POSTGRES_TEST_USER
+    POSTGRES_PASSWORD: $POSTGRES_TEST_PASSWORD
+    POSTGRES_PORT: 5432
+    POSTGRES_URL: $SERVER_IP
+  script:
+    - cd backend
+    - go mod vendor
+    - go test -coverpkg=./... -coverprofile=backend.out -v ./...
+    - go tool cover -func=backend.out
+  rules:
+    - if: $CI_COMMIT_BRANCH != "master"
+      when: on_success
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - backend/backend.out
+  tags:
+    - GO
+
+deploy-to-staging:
+  stage: deploy-to-staging
+  image: ubuntu:latest
+  before_script:
+    - "which ssh-agent || (apt-get update -y && apt-get install openssh-client git -y)"
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan 145.97.16.181 >> ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+  script:
+    - echo "staging!"
+    - mv backend/build/app backend/build/app-staging
+    - scp -r frontend/dist/* thom@145.97.16.181:/home/thom/project/frontend/builds/dist-staging/
+    - scp backend/build/app-staging thom@145.97.16.181:/home/thom/project/backend/build
+    - ssh thom@145.97.16.181 'cd /home/thom/project/frontend/builds && cp -r dist-staging ./staging-builds/dist_$(date +%d-%m-%Y)_$(($(date +%s%N) / 1000000))'
+    - ssh thom@145.97.16.181 'cd /home/thom/project/backend/build && cp app-staging ./staging-builds/app_$(date +%d-%m-%Y)_$(($(date +%s%N) / 1000000))'
+    - ssh thom@145.97.16.181 'cd /home/thom/project && git checkout development && git pull'
+    - ssh thom@145.97.16.181 'cd /home/thom/project/backend/build && mv -f app-staging app-staging-active'
+    - ssh thom@145.97.16.181 'cd /home/thom/project && docker build -t staging-backend:latest -f go.Dockerfile ./backend'
+    - ssh thom@145.97.16.181 'cd /home/thom/project && docker build -t staging-frontend:latest -f staging.nginx.Dockerfile ./frontend'
+    - ssh thom@145.97.16.181 'cd /home/thom/project && docker service update staging_vue --force'
+    - ssh thom@145.97.16.181 'cd /home/thom/project && docker service update staging_go --force'
+    - ssh thom@145.97.16.181 'cd /home/thom/project && docker stack deploy -c staging-docker-compose.yml staging'
+  rules:
+    - if: $CI_COMMIT_BRANCH == "development"
+      when: on_success
+  tags:
+    - SSH
+
+deploy-to-production:
+  stage: deploy
+  image: ubuntu:latest
+  needs: [build-frontend-production, build-backend]
+  before_script:
+    - "which ssh-agent || (apt-get update -y && apt-get install openssh-client git -y)"
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan 145.97.16.181 >> ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+  script:
+    - echo "deploy!"
+    - mv backend/build/app backend/build/app-production
+    - scp -r frontend/dist/* thom@145.97.16.181:/home/thom/project/frontend/builds/dist-production/
+    - scp backend/build/app-production thom@145.97.16.181:/home/thom/project/backend/build
+    - ssh thom@145.97.16.181 'cd /home/thom/project/frontend/builds && cp -r dist-production ./production-builds/dist_$(date +%d-%m-%Y)_$(($(date +%s%N) / 1000000))'
+    - ssh thom@145.97.16.181 'cd /home/thom/project/backend/build && cp app-production ./production-builds/app_$(date +%d-%m-%Y)_$(($(date +%s%N) / 1000000))'
+    - ssh thom@145.97.16.181 'cd /home/thom/project && git checkout master && git pull'
+    - ssh thom@145.97.16.181 'cd /home/thom/project/backend/build && mv -f app-production app-production-active'
+    - ssh thom@145.97.16.181 'cd /home/thom/project && docker build -t production-backend:latest -f go.Dockerfile ./backend'
+    - ssh thom@145.97.16.181 'cd /home/thom/project && docker build -t production-frontend:latest -f production.nginx.Dockerfile ./frontend'
+    - ssh thom@145.97.16.181 'cd /home/thom/project && docker service update production_vue-prod --force'
+    - ssh thom@145.97.16.181 'cd /home/thom/project && docker service update production_go-prod --force'
+    - ssh thom@145.97.16.181 'cd /home/thom/project && docker stack deploy -c production-docker-compose.yml production'
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+      when: on_success
+  tags:
+    - SSH
+
+sonarqube-scan:
+  stage: staging
+  image: ubuntu:latest
+  needs: [deploy-to-staging]
+  before_script:
+    - apt-get update && apt-get upgrade -y
+    - apt-get install wget unzip -y
+    - wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-4.5.0.2216-linux.zip
+    - unzip sonar-scanner-cli-4.5.0.2216-linux.zip -d .
+  script:
+    - ./sonar-scanner-4.5.0.2216-linux/bin/sonar-scanner -Dsonar.projectKey=SyncMyMusic-frontend -Dsonar.sources=./frontend -Dsonar.host.url=http://145.97.16.181:9000 -Dsonar.login=$SONAR_KEY
+    - ./sonar-scanner-4.5.0.2216-linux/bin/sonar-scanner -Dsonar.projectKey=SyncMyMusic-backend -Dsonar.sources=./backend -Dsonar.host.url=http://145.97.16.181:9000 -Dsonar.login=$SONAR_KEY
+  tags:
+    - UBUNTU
+  rules:
+    - if: $CI_COMMIT_BRANCH == "development"
+      when: on_success
+
+endpoint-test:
+  image: node:latest
+  stage: staging
+  needs: [deploy-to-staging]
+  before_script:
+    - npm i newman -g
+  script:
+    - newman run backend/postman/*.json
+  tags:
+    - NODE
+  rules:
+    - if: $CI_COMMIT_BRANCH == "development"
+      when: on_success
+
+end-to-end-test:
+  stage: staging
+  needs: [deploy-to-staging]
+  image: comfy/node-chrome:latest
+  script:
+    - cd frontend
+    - npm ci --cache .npm --prefer-offline
+    - apt-get update && apt-get upgrade -y
+    - npm run test:e2e
+  tags:
+    - VUE
+  rules:
+    - if: $CI_COMMIT_BRANCH == "development"
+      when: on_success

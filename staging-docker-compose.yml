@@ -1,0 +1,35 @@
+version: "3.8"
+services:
+  postgres:
+    image: postgres
+    restart: always
+    environment:
+      - POSTGRES_DB=syncmymusic
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - ./database/staging:/var/lib/postgresql/data
+  go:
+    image: staging-backend
+    environment:
+      - DATABASE_NAME=syncmymusic
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_URL=postgres
+      - APP_ENV=staging
+    entrypoint: /backend/app-staging-active
+    volumes:
+      - ./files:/go/files
+    links:
+      - postgres
+  vue:
+    image: staging-frontend
+    links:
+      - go
+    ports:
+      - "91:80"
+networks:
+  default:
+    external:
+      name: staging

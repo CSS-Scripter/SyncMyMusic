@@ -1,0 +1,10 @@
+vendor
+build
+coverage.html
+backend.out
+.scannerwork
+
+Dockerfile
+app
+
+*uploads

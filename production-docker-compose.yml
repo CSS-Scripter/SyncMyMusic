@@ -1,0 +1,35 @@
+version: "3.8"
+services:
+  postgres-prod:
+    image: postgres
+    restart: always
+    environment:
+      - POSTGRES_DB=syncmymusic
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - ./database/production:/var/lib/postgresql/data
+  go-prod:
+    image: production-backend
+    environment:
+      - DATABASE_NAME=syncmymusic
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_URL=postgres-prod
+      - APP_ENV=production
+    entrypoint: /backend/app-production-active
+    volumes:
+      - ./files:/go/files
+    links:
+      - postgres-prod
+  vue-prod:
+    image: production-frontend
+    links:
+      - go-prod
+    ports:
+      - "90:80"
+networks:
+  default:
+    external:
+      name: production
